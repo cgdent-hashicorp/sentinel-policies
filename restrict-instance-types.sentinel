@@ -7,7 +7,6 @@ allowed_instance_types = [
   "t3.small",
 ]
 
-# Correct function syntax
 is_allowed = func(type) {
   return allowed_instance_types contains type
 }
@@ -18,12 +17,16 @@ aws_instances = filter tfplan.resource_changes as _, rc {
   (rc.change.actions contains "create" or rc.change.actions contains "update")
 }
 
-violations = [
+# Build violations in a Sentinel-friendly way
+violations = []
+
+violations = append(violations, [
   instance.address + " uses disallowed instance type: " + instance.change.after.instance_type
-  for aws_instances as _, instance
-  if instance.change.after.instance_type is null or
-     not is_allowed(instance.change.after.instance_type)
-]
+  for aws_instances as _, instance {
+    instance.change.after.instance_type is null or
+    not is_allowed(instance.change.after.instance_type)
+  }
+])
 
 main = rule {
   length(violations) is 0
