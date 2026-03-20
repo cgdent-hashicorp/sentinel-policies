@@ -25,18 +25,16 @@ violations = func() {
   msgs = []
 
   for aws_instances as _, instance {
-    # Check 'change' exists
-    change = instance.change else continue
-    after = change.after else continue
+    # Only process if 'change' and 'after' exist
+    if instance.change is not null and instance.change.after is not null {
+      after = instance.change.after
+      itype = after.instance_type else null
 
-    # Safely get instance_type
-    itype = after.instance_type else null
-
-    # Only append strings, never undefined
-    if itype is null {
-      msgs = append(msgs, "- " + instance.address + ": instance_type is unknown, cannot validate")
-    } else if not is_allowed(itype) {
-      msgs = append(msgs, "- " + instance.address + ": disallowed instance type '" + itype + "'")
+      if itype is null {
+        msgs = append(msgs, "- " + instance.address + ": instance_type is unknown, cannot validate")
+      } else if not is_allowed(itype) {
+        msgs = append(msgs, "- " + instance.address + ": disallowed instance type '" + itype + "'")
+      }
     }
   }
 
