@@ -1,0 +1,29 @@
+import "tfplan/v2" as tfplan
+
+allowed_instance_types = [
+  "t2.micro",
+  "t2.small",
+  "t3.micro",
+  "t3.small",
+]
+
+is_allowed(type) {
+  allowed_instance_types contains type
+}
+
+aws_instances = filter tfplan.resource_changes as _, rc {
+  rc.type is "aws_instance" and
+  rc.mode is "managed" and
+  (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+violations = [
+  instance.address + " uses disallowed instance type: " + instance.change.after.instance_type
+  for aws_instances as _, instance
+  if instance.change.after.instance_type is null or
+     not is_allowed(instance.change.after.instance_type)
+]
+
+main = rule {
+  length(violations) is 0
+}
