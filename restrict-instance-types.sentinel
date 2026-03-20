@@ -8,6 +8,7 @@ allowed_instance_types = [
   "t3.small",
 ]
 
+# Function to check if a type is allowed
 is_allowed = func(t) {
   return allowed_instance_types contains t
 }
@@ -20,7 +21,7 @@ aws_instances = filter tfplan.resource_changes as _, rc {
   (rc.change.actions contains "create" or rc.change.actions contains "update")
 }
 
-# Build violations safely
+# Build violations list
 violations = func() {
   msgs = []
 
@@ -30,10 +31,9 @@ violations = func() {
       after = instance.change.after
       itype = after.instance_type else null
 
-      if itype is null {
-        msgs = append(msgs, "- " + instance.address + ": instance_type is unknown, cannot validate")
-      } else if not is_allowed(itype) {
-        msgs = append(msgs, "- " + instance.address + ": disallowed instance type '" + itype + "'")
+      # Treat unknown or disallowed instance types as violations
+      if itype is null or not is_allowed(itype) {
+        msgs = append(msgs, "- " + instance.address + ": disallowed or unknown instance_type '" + string(itype) + "'")
       }
     }
   }
@@ -44,6 +44,7 @@ violations = func() {
 # Ensure violations is always a list
 violations_safe = violations else []
 
+# Main rule: fail if there are any violations
 main = rule {
-  length(violations_safe) is 0
+  length(violations_safe) is not 0 is false
 }
