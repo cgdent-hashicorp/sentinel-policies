@@ -13,7 +13,7 @@ is_allowed = func(t) {
   return allowed_instance_types contains t
 }
 
-# Filter only resources being created/updated
+# Filter only aws_instance resources being created or updated
 aws_instances = filter tfplan.resource_changes as _, rc {
   rc.type is "aws_instance" and
   rc.mode is "managed" and
@@ -26,15 +26,20 @@ violations = func() {
   msgs = []
 
   for aws_instances as _, instance {
+    # Ensure 'after' exists
     if instance.change is not null and instance.change.after is not null {
       after = instance.change.after
-      # Safely get instance_type, fallback to <unknown>
+
+      # Safely get instance_type; treat undefined/null as "<unknown>"
       itype = after.instance_type else "<unknown>"
 
-      # Unknown or disallowed types are violations
+      # Any unknown or disallowed instance type triggers a violation
       if itype == "<unknown>" or not is_allowed(itype) {
         msgs = append(msgs, "- " + instance.address + ": disallowed or unknown instance_type '" + itype + "'")
       }
+    } else {
+      # If 'after' does not exist, count it as a violation (cannot validate)
+      msgs = append(msgs, "- " + instance.address + ": instance_type cannot be determined")
     }
   }
 
