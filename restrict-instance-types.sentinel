@@ -17,17 +17,22 @@ aws_instances = filter tfplan.resource_changes as _, rc {
   (rc.change.actions contains "create" or rc.change.actions contains "update")
 }
 
-violations = []
-
-# Build violations using a simple loop (most reliable in Sentinel)
 violations = func() {
   msgs = []
 
   for aws_instances as _, instance {
-    itype = instance.change.after.instance_type
+    # Safely read instance_type
+    itype = instance.change.after.instance_type else null
 
-    if itype is null or not is_allowed(itype) {
-      msgs = append(msgs, instance.address + " uses disallowed instance type: " + string(itype))
+    # Handle undefined explicitly
+    if itype is null {
+      msgs = append(msgs,
+        instance.address + " has unknown instance_type (cannot be validated)"
+      )
+    } else if not is_allowed(itype) {
+      msgs = append(msgs,
+        instance.address + " uses disallowed instance type: " + itype
+      )
     }
   }
 
