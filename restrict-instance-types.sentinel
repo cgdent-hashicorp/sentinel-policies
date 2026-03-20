@@ -8,7 +8,6 @@ allowed_instance_types = [
   "t3.small",
 ]
 
-# Helper function to check allowed types
 is_allowed = func(t) {
   return allowed_instance_types contains t
 }
@@ -17,21 +16,25 @@ is_allowed = func(t) {
 aws_instances = filter tfplan.resource_changes as _, rc {
   rc.type is "aws_instance" and
   rc.mode is "managed" and
+  rc.change is not null and
   (rc.change.actions contains "create" or rc.change.actions contains "update")
 }
 
-# Build a safe list of violations
 violations = func() {
   msgs = []
 
   for aws_instances as _, instance {
-    # Skip resources with no 'after' (destroyed)
-    after = instance.change.after else null
+    # Fully safe nested access
+    change = instance.change else null
+    if change is null {
+      continue
+    }
+
+    after = change.after else null
     if after is null {
       continue
     }
 
-    # Safely read instance_type (unknown values become null)
     itype = after.instance_type else null
 
     if itype is null {
@@ -44,9 +47,6 @@ violations = func() {
   return msgs
 }()
 
-# Main rule: fail if any violations exist
 main = rule {
   length(violations) is 0
 }
-
-# Terraform Cloud automatically shows the 'violations' variable when the policy fails
