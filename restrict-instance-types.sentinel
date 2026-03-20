@@ -8,30 +8,28 @@ allowed_instance_types = [
   "t3.small",
 ]
 
-# Function to check if an instance type is allowed
+# Check if an instance type is allowed
 is_allowed = func(t) {
   return allowed_instance_types contains t
 }
 
-# Filter for all aws_instance resources being created or updated
+# Get all aws_instance resources being created or updated
 aws_instances = filter tfplan.resource_changes as _, rc {
   rc.type is "aws_instance" and
   rc.mode is "managed" and
   (rc.change.actions contains "create" or rc.change.actions contains "update")
 }
 
-# Build violations list safely
+# Build a safe list of violations
 violations = func() {
   msgs = []
 
   for aws_instances as _, instance {
-    # Safely check if 'after' exists
     after = instance.change.after else null
     if after is null {
       continue
     }
 
-    # Safely get the instance_type
     itype = after.instance_type else null
 
     if itype is null {
@@ -44,7 +42,10 @@ violations = func() {
   return msgs
 }()
 
-# Main rule: pass only if there are no violations
+# Main rule: fail if there are any violations
 main = rule {
   length(violations) is 0
 }
+
+# Optional: export violations as a message so Terraform Cloud displays them nicely
+print("Sentinel EC2 instance type violations:", violations)
