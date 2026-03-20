@@ -7,8 +7,9 @@ allowed_instance_types = [
   "t3.small",
 ]
 
-is_allowed(type) {
-  allowed_instance_types contains type
+# Correct function syntax
+is_allowed = func(type) {
+  return allowed_instance_types contains type
 }
 
 aws_instances = filter tfplan.resource_changes as _, rc {
