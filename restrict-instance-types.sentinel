@@ -12,7 +12,7 @@ is_allowed = func(t) {
   return allowed_instance_types contains t
 }
 
-# Filter only aws_instance resources being created or updated
+# Filter aws_instance resources being created or updated
 aws_instances = filter tfplan.resource_changes as _, rc {
   rc.type is "aws_instance" and
   rc.mode is "managed" and
@@ -20,23 +20,19 @@ aws_instances = filter tfplan.resource_changes as _, rc {
   (rc.change.actions contains "create" or rc.change.actions contains "update")
 }
 
+# Build violations safely
 violations = func() {
   msgs = []
 
   for aws_instances as _, instance {
-    # Fully safe nested access
-    change = instance.change else null
-    if change is null {
-      continue
-    }
+    # Check 'change' exists
+    change = instance.change else continue
+    after = change.after else continue
 
-    after = change.after else null
-    if after is null {
-      continue
-    }
-
+    # Safely get instance_type
     itype = after.instance_type else null
 
+    # Only append strings, never undefined
     if itype is null {
       msgs = append(msgs, "- " + instance.address + ": instance_type is unknown, cannot validate")
     } else if not is_allowed(itype) {
@@ -47,6 +43,9 @@ violations = func() {
   return msgs
 }()
 
+# Ensure violations is always a list
+violations_safe = violations else []
+
 main = rule {
-  length(violations) is 0
+  length(violations_safe) is 0
 }
