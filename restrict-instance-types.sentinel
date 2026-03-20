@@ -8,12 +8,12 @@ allowed_instance_types = [
   "t3.small",
 ]
 
-# Check if an instance type is allowed
+# Helper function to check allowed types
 is_allowed = func(t) {
   return allowed_instance_types contains t
 }
 
-# Get all aws_instance resources being created or updated
+# Filter only aws_instance resources being created or updated
 aws_instances = filter tfplan.resource_changes as _, rc {
   rc.type is "aws_instance" and
   rc.mode is "managed" and
@@ -25,27 +25,28 @@ violations = func() {
   msgs = []
 
   for aws_instances as _, instance {
+    # Skip resources with no 'after' (destroyed)
     after = instance.change.after else null
     if after is null {
       continue
     }
 
+    # Safely read instance_type (unknown values become null)
     itype = after.instance_type else null
 
     if itype is null {
-      msgs = append(msgs, instance.address + " has unknown instance_type (cannot be validated)")
+      msgs = append(msgs, "- " + instance.address + ": instance_type is unknown, cannot validate")
     } else if not is_allowed(itype) {
-      msgs = append(msgs, instance.address + " uses disallowed instance type: " + itype)
+      msgs = append(msgs, "- " + instance.address + ": disallowed instance type '" + itype + "'")
     }
   }
 
   return msgs
 }()
 
-# Main rule: fail if there are any violations
+# Main rule: fail if any violations exist
 main = rule {
   length(violations) is 0
 }
 
-# Optional: export violations as a message so Terraform Cloud displays them nicely
-print("Sentinel EC2 instance type violations:", violations)
+# Terraform Cloud automatically shows the 'violations' variable when the policy fails
